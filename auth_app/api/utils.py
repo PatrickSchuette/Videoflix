@@ -7,6 +7,10 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.html import strip_tags
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_encode, urlsafe_base64_decode
 from datetime import datetime, timedelta
+from rest_framework.response import Response
+from rest_framework_simplejwt.settings import api_settings as jwt_settings
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from django.utils import timezone
 
@@ -72,3 +76,40 @@ def get_user_from_uid(uidb64: str) -> User | None:
         return User.objects.get(pk=user_id)
     except (TypeError, ValueError, OverflowError, User.DoesNotExist):
         return None
+
+
+def set_jwt_cookie(response: Response, name: str, token: str, lifetime: timedelta) -> None:
+    """Store a JWT token as an HttpOnly cookie on the given response."""
+    response.set_cookie(
+        key=name,
+        value=token,
+        max_age=int(lifetime.total_seconds()),
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite="Lax",
+    )
+
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    """Store the access token and the refresh token as HttpOnly cookies."""
+    set_jwt_cookie(response, "access_token", access_token, jwt_settings.ACCESS_TOKEN_LIFETIME)
+    set_jwt_cookie(response, "refresh_token", refresh_token, jwt_settings.REFRESH_TOKEN_LIFETIME)
+
+
+def set_access_cookie(response: Response, access_token: str) -> None:
+    """Store only a new access token as an HttpOnly cookie, used after a token refresh."""
+    set_jwt_cookie(response, "access_token", access_token, jwt_settings.ACCESS_TOKEN_LIFETIME)
+
+
+def delete_auth_cookies(response: Response) -> None:
+    """Remove the access token and refresh token cookies from the browser."""
+    response.delete_cookie("access_token", samesite="Lax")
+    response.delete_cookie("refresh_token", samesite="Lax")
+
+
+def blacklist_refresh_token(refresh_token: str) -> None:
+    """Put the given refresh token on the blacklist, so it can never be used again."""
+    try:
+        RefreshToken(refresh_token).blacklist()
+    except TokenError:
+        pass

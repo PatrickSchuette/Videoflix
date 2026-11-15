@@ -4,12 +4,14 @@ from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.contrib.auth.models import update_last_login
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import RegistrationSerializer
-from .utils import queue_activation_email, queue_activation_email, encode_user_id, build_frontend_link, get_user_from_uid
+from .serializers import RegistrationSerializer, LoginSerializer
+from .utils import queue_activation_email, encode_user_id, build_frontend_link, get_user_from_uid, set_auth_cookies, blacklist_refresh_token, delete_auth_cookies, set_access_cookie
 
 GENERIC_ERROR = {"detail": "Please check your input and try again."}
-
+MISSING_REFRESH_TOKEN = {"detail": "Refresh token missing."}
 
 class RegistrationView(generics.GenericAPIView):
     """
@@ -55,3 +57,81 @@ class ActivateAccountView(APIView):
         user.is_active = True
         user.save(update_fields=["is_active"])
         return Response({"message": "Account successfully activated."}, status=status.HTTP_200_OK)
+
+
+class LoginView(generics.GenericAPIView):
+    """
+    POST /api/login/
+
+    Authenticates the user with email and password. On success the JWT access
+    and refresh tokens are set as HttpOnly cookies instead of being returned
+    in the response body.
+    """
+
+    serializer_class = LoginSerializer
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request) -> Response:
+        """Check the credentials, create JWT tokens and store them as cookies."""
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(GENERIC_ERROR, status=status.HTTP_400_BAD_REQUEST)
+        user = serializer.validated_data["user"]
+        update_last_login(None, user)
+        refresh = RefreshToken.for_user(user)
+        response_data = {"detail": "Login successful", "user": {"id": user.id, "username": user.email}}
+        response = Response(response_data, status=status.HTTP_200_OK)
+        set_auth_cookies(response, str(refresh.access_token), str(refresh))
+        return response
+
+
+class LogoutView(APIView):
+    """
+    POST /api/logout/
+
+    Logs the user out by putting the refresh token on the blacklist and
+    deleting both JWT cookies. Requires the refresh_token cookie.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request) -> Response:
+        """Blacklist the refresh token from the cookie and delete all auth cookies."""
+        refresh_token = request.COOKIES.get("refresh_token")
+        if refresh_token is None:
+            return Response(MISSING_REFRESH_TOKEN, status=status.HTTP_400_BAD_REQUEST)
+        blacklist_refresh_token(refresh_token)
+        response_data = {
+            "detail": "Logout successful! All tokens will be deleted. Refresh token is now invalid."
+        }
+        response = Response(response_data, status=status.HTTP_200_OK)
+        delete_auth_cookies(response)
+        return response
+
+
+class TokenRefreshView(APIView):
+    """
+    POST /api/token/refresh/
+
+    Issues a new access token when the old one has expired. The refresh token
+    is read from the HttpOnly cookie and the new access token is set as a cookie.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request) -> Response:
+        """Validate the refresh token from the cookie and set a new access token cookie."""
+        refresh_token = request.COOKIES.get("refresh_token")
+        if refresh_token is None:
+            return Response(MISSING_REFRESH_TOKEN, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            refresh = RefreshToken(refresh_token)
+        except TokenError:
+            return Response({"detail": "Invalid refresh token."}, status=status.HTTP_401_UNAUTHORIZED)
+        access_token = str(refresh.access_token)
+        response = Response({"detail": "Token refreshed", "access": access_token}, status=status.HTTP_200_OK)
+        set_access_cookie(response, access_token)
+        return response
