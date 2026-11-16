@@ -62,3 +62,27 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid credentials.")
         attrs["user"] = user
         return attrs
+
+
+class PasswordResetSerializer(serializers.Serializer):
+    """Validates that the password reset request contains a valid email address."""
+
+    email = serializers.EmailField()
+
+
+class PasswordConfirmSerializer(serializers.Serializer):
+    """
+    Validates the new password sent from the reset password page.
+
+    Both fields must match and the password needs at least 8 characters,
+    the same rule as during registration.
+    """
+
+    new_password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs: dict) -> dict:
+        """Ensure that 'new_password' and 'confirm_password' contain the same value."""
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError("Passwords do not match.")
+        return attrs

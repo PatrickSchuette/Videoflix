@@ -7,8 +7,8 @@ from rest_framework.views import APIView
 from django.contrib.auth.models import update_last_login
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import RegistrationSerializer, LoginSerializer
-from .utils import queue_activation_email, encode_user_id, build_frontend_link, get_user_from_uid, set_auth_cookies, blacklist_refresh_token, delete_auth_cookies, set_access_cookie
+from .serializers import RegistrationSerializer, LoginSerializer, PasswordResetSerializer, PasswordConfirmSerializer
+from .utils import queue_activation_email, encode_user_id, build_frontend_link, get_user_from_uid, set_auth_cookies, blacklist_refresh_token, delete_auth_cookies, set_access_cookie, queue_password_reset_email
 
 GENERIC_ERROR = {"detail": "Please check your input and try again."}
 MISSING_REFRESH_TOKEN = {"detail": "Refresh token missing."}
@@ -135,3 +135,55 @@ class TokenRefreshView(APIView):
         response = Response({"detail": "Token refreshed", "access": access_token}, status=status.HTTP_200_OK)
         set_access_cookie(response, access_token)
         return response
+
+
+class PasswordResetView(generics.GenericAPIView):
+    """
+    POST /api/password_reset/
+
+    Sends a password reset email if an active user with this email exists.
+    The response is always the same, so nobody can find out which email
+    addresses are registered.
+    """
+
+    serializer_class = PasswordResetSerializer
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request) -> Response:
+        """Queue a reset email for an existing active user and always return 200."""
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(GENERIC_ERROR, status=status.HTTP_400_BAD_REQUEST)
+        email = serializer.validated_data["email"]
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        if user is not None:
+            queue_password_reset_email(user)
+        response_data = {
+            "detail": "An email has been sent to reset your password."}
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class PasswordConfirmView(generics.GenericAPIView):
+    """
+    POST /api/password_confirm/<uidb64>/<token>/
+
+    Sets a new password for the user from the reset link. The old password
+    hash is replaced, which also makes the reset link invalid.
+    """
+
+    serializer_class = PasswordConfirmSerializer
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request: Request, uidb64: str, token: str) -> Response:
+        """Check uid and token from the link, validate the new password and save it."""
+        user = get_user_from_uid(uidb64)
+        if user is None or not default_token_generator.check_token(user, token):
+            return Response({"detail": "Invalid or expired reset link."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(GENERIC_ERROR, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        return Response({"detail": "Your Password has been successfully reset."}, status=status.HTTP_200_OK)

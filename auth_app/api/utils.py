@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.tokens import default_token_generator
 
 from django.utils import timezone
 
@@ -64,6 +65,21 @@ def queue_activation_email(user: User, token: str) -> None:
     django_rq.enqueue(send_html_email, "Confirm your email", "auth_app/activation_email.html", context, user.email)
 
 
+def queue_password_reset_email(user: User) -> None:
+    """
+    Create a password reset token for the user and put the reset email into the queue.
+
+    The token becomes invalid as soon as the password is changed, so every
+    reset link can only be used once.
+    """
+    token = default_token_generator.make_token(user)
+    link = build_frontend_link(
+        "confirm_password.html", encode_user_id(user), token)
+    context = {"reset_link": link, "expiry_date": get_token_expiry()}
+    django_rq.enqueue(
+        send_html_email, "Reset your password", "auth_app/password_reset_email.html", context, user.email
+    )
+    
 def get_user_from_uid(uidb64: str) -> User | None:
     """
     Decode the uidb64 from an email link and return the matching user.
