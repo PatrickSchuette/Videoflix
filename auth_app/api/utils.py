@@ -1,19 +1,19 @@
+from datetime import datetime, timedelta
+
 import django_rq
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
+from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.html import strip_tags
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_encode, urlsafe_base64_decode
-from datetime import datetime, timedelta
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework.response import Response
-from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth.tokens import default_token_generator
-
-from django.utils import timezone
 
 
 def encode_user_id(user: User) -> str:

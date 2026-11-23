@@ -1,14 +1,28 @@
+from django.contrib.auth.models import User, update_last_login
 from django.contrib.auth.tokens import default_token_generator
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth.models import update_last_login
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import RegistrationSerializer, LoginSerializer, PasswordResetSerializer, PasswordConfirmSerializer
-from .utils import queue_activation_email, encode_user_id, build_frontend_link, get_user_from_uid, set_auth_cookies, blacklist_refresh_token, delete_auth_cookies, set_access_cookie, queue_password_reset_email
+from .serializers import (
+    LoginSerializer,
+    PasswordConfirmSerializer,
+    PasswordResetSerializer,
+    RegistrationSerializer,
+)
+from .utils import (
+    blacklist_refresh_token,
+    delete_auth_cookies,
+    get_user_from_uid,
+    queue_activation_email,
+    queue_password_reset_email,
+    set_access_cookie,
+    set_auth_cookies,
+)
 
 GENERIC_ERROR = {"detail": "Please check your input and try again."}
 MISSING_REFRESH_TOKEN = {"detail": "Refresh token missing."}

@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_rq',
     'auth_app',
+    'video_app',
 ]
 
 MIDDLEWARE = [
@@ -189,4 +190,13 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", default="http://127.0.0.1:5500")
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+}
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "auth_app.api.authentication.CookieJWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
 }
