@@ -1,12 +1,14 @@
 import subprocess
 import shutil
 from pathlib import Path
+from django.core.cache import cache
 
 from django.conf import settings
 
 from .models import Video
 
 RESOLUTIONS = {"480p": 480, "720p": 720, "1080p": 1080}
+VIDEO_LIST_CACHE_KEY = "video_list"
 
 
 def get_hls_directory(video_id: int, resolution: str) -> Path:
@@ -25,6 +27,17 @@ def get_hls_file_path(video_id: int, resolution: str, filename: str) -> Path | N
     file_path = get_hls_directory(video_id, resolution) / filename
     return file_path if file_path.is_file() else None
 
+
+def clear_video_list_cache() -> None:
+    """
+    Remove the cached video list from Redis.
+
+    Called whenever a video is added, changed or deleted, so the next
+    request to /api/video/ builds a fresh list from the database.
+    """
+    cache.delete(VIDEO_LIST_CACHE_KEY)
+    
+    
 def delete_video_files(video: Video) -> None:
     """
     Delete all files that belong to a video from the media folder.
@@ -96,5 +109,6 @@ def process_video(video_id: int) -> None:
     if not video.thumbnail:
         thumbnail_path = create_thumbnail(source_path, video_id)
         Video.objects.filter(pk=video_id).update(thumbnail=thumbnail_path)
+        clear_video_list_cache()
     for resolution in RESOLUTIONS:
         convert_to_hls(source_path, video_id, resolution)

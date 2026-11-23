@@ -3,9 +3,10 @@ from rest_framework import generics, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.core.cache import cache
 
 from video_app.models import Video
-from video_app.utils import get_hls_file_path
+from video_app.utils import get_hls_file_path, VIDEO_LIST_CACHE_KEY
 
 from .serializers import VideoSerializer
 
@@ -20,6 +21,14 @@ class VideoListView(generics.ListAPIView):
 
     queryset = Video.objects.all()
     serializer_class = VideoSerializer
+    
+    def list(self, request: Request, *args, **kwargs) -> Response:
+        """Return the video list from the Redis cache, or build it and store it there."""
+        video_list = cache.get(VIDEO_LIST_CACHE_KEY)
+        if video_list is None:
+            video_list = self.get_serializer(self.get_queryset(), many=True).data
+            cache.set(VIDEO_LIST_CACHE_KEY, video_list, timeout=60 * 15)
+        return Response(video_list)
 
 
 class HLSPlaylistView(APIView):

@@ -4,7 +4,7 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
 from .models import Video
-from .utils import process_video, delete_video_files
+from .utils import process_video, delete_video_files, clear_video_list_cache
 
 @receiver(post_save, sender=Video)
 def queue_video_processing(sender: type[Video], instance: Video, created: bool, **kwargs) -> None:
@@ -24,6 +24,11 @@ def queue_video_processing(sender: type[Video], instance: Video, created: bool, 
         )
 
 
+@receiver([post_save, post_delete], sender=Video)
+def invalidate_video_list_cache(sender: type[Video], instance: Video, **kwargs) -> None:
+    """Clear the cached video list whenever a video is created, changed or deleted."""
+    clear_video_list_cache()
+    
 @receiver(post_delete, sender=Video)
 def remove_video_files(sender: type[Video], instance: Video, **kwargs) -> None:
     """Delete the original file, the thumbnail and all HLS files of a deleted video."""
