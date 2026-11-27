@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'django_rq',
     'auth_app',
     'video_app',
+    'import_export',
 ]
 
 MIDDLEWARE = [
@@ -225,3 +226,5 @@ def show_toolbar(request) -> bool:
 DEBUG_TOOLBAR_CONFIG = {
     "SHOW_TOOLBAR_CALLBACK": show_toolbar,
 }
+
+IMPORT_EXPORT_USE_TRANSACTIONS = True
