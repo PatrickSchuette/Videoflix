@@ -24,3 +24,8 @@ urlpatterns = [
     path('api/', include('auth_app.api.urls')),
     path("api/", include("video_app.api.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+if "debug_toolbar" in settings.INSTALLED_APPS:
+    from debug_toolbar.toolbar import debug_toolbar_urls
+
+    urlpatterns += debug_toolbar_urls()

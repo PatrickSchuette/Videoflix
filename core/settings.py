@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 from pathlib import Path
-import os
+import os, sys
 from dotenv import load_dotenv
 from datetime import timedelta
 
@@ -199,4 +199,29 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+}
+
+TESTING = "test" in sys.argv
+
+if DEBUG and not TESTING:
+    INSTALLED_APPS += ["debug_toolbar"]
+    MIDDLEWARE.insert(
+        MIDDLEWARE.index("corsheaders.middleware.CorsMiddleware") + 1,
+        "debug_toolbar.middleware.DebugToolbarMiddleware",
+    )
+
+
+def show_toolbar(request) -> bool:
+    """
+    Decide whether the debug toolbar is shown on a page.
+
+    The default check compares the visitor's IP with INTERNAL_IPS. Inside
+    Docker the requests come from an internal Docker IP, so the toolbar is
+    simply shown whenever DEBUG is on. Return False here to hide it.
+    """
+    return DEBUG
+
+
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": show_toolbar,
 }
